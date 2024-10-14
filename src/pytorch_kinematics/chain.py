@@ -74,7 +74,8 @@ class Chain:
         self.dtype = dtype
         self.device = device
 
-        self.identity = torch.eye(4, device=self.device, dtype=self.dtype).unsqueeze(0)
+        self.identity = torch.eye(
+            4, device=self.device, dtype=self.dtype).unsqueeze(0)
 
         low, high = self.get_joint_limits()
         self.low = torch.tensor(low, device=self.device, dtype=self.dtype)
@@ -85,15 +86,18 @@ class Chain:
         # parents_indices and joint_indices all use this indexing scheme.
         # The root frame will be index 0 and the first frame of the root frame's children will be index 1,
         # then the child of that frame will be index 2, etc. In other words, it's a depth-first ordering.
-        self.parents_indices = []  # list of indices from 0 (root) to the given frame
+        # list of indices from 0 (root) to the given frame
+        self.parents_indices = []
         self.joint_indices = []
         self.n_joints = len(self.get_joint_parameter_names())
-        self.axes = torch.zeros([self.n_joints, 3], dtype=self.dtype, device=self.device)
+        self.axes = torch.zeros(
+            [self.n_joints, 3], dtype=self.dtype, device=self.device)
         self.link_offsets = []
         self.joint_offsets = []
         self.joint_type_indices = []
         queue = []
-        queue.insert(-1, (self._root, -1, 0))  # the root has no parent so we use -1.
+        # the root has no parent so we use -1.
+        queue.insert(-1, (self._root, -1, 0))
         idx = 0
         self.frame_to_idx = {}
         self.idx_to_frame = {}
@@ -105,7 +109,8 @@ class Chain:
             if parent_idx == -1:
                 self.parents_indices.append([idx])
             else:
-                self.parents_indices.append(self.parents_indices[parent_idx] + [idx])
+                self.parents_indices.append(
+                    self.parents_indices[parent_idx] + [idx])
 
             is_fixed = root.joint.joint_type == 'fixed'
 
@@ -128,7 +133,8 @@ class Chain:
 
             # these are integers so that we can use them as indices into tensors
             # FIXME: how do we know the order of these types in C++?
-            self.joint_type_indices.append(Joint.TYPES.index(root.joint.joint_type))
+            self.joint_type_indices.append(
+                Joint.TYPES.index(root.joint.joint_type))
 
             for child in root.children:
                 queue.append((child, idx, depth + 1))
@@ -137,7 +143,8 @@ class Chain:
         self.joint_type_indices = torch.tensor(self.joint_type_indices)
         self.joint_indices = torch.tensor(self.joint_indices)
         # We need to use a dict because torch.compile doesn't list lists of tensors
-        self.parents_indices = [torch.tensor(p, dtype=torch.long, device=self.device) for p in self.parents_indices]
+        self.parents_indices = [torch.tensor(
+            p, dtype=torch.long, device=self.device) for p in self.parents_indices]
 
     def to(self, dtype=None, device=None):
         if dtype is not None:
@@ -147,11 +154,15 @@ class Chain:
         self._root = self._root.to(dtype=self.dtype, device=self.device)
 
         self.identity = self.identity.to(device=self.device, dtype=self.dtype)
-        self.parents_indices = [p.to(dtype=torch.long, device=self.device) for p in self.parents_indices]
-        self.joint_type_indices = self.joint_type_indices.to(dtype=torch.long, device=self.device)
-        self.joint_indices = self.joint_indices.to(dtype=torch.long, device=self.device)
+        self.parents_indices = [
+            p.to(dtype=torch.long, device=self.device) for p in self.parents_indices]
+        self.joint_type_indices = self.joint_type_indices.to(
+            dtype=torch.long, device=self.device)
+        self.joint_indices = self.joint_indices.to(
+            dtype=torch.long, device=self.device)
         self.axes = self.axes.to(dtype=self.dtype, device=self.device)
-        self.link_offsets = [l if l is None else l.to(dtype=self.dtype, device=self.device) for l in self.link_offsets]
+        self.link_offsets = [l if l is None else l.to(
+            dtype=self.dtype, device=self.device) for l in self.link_offsets]
         self.joint_offsets = [j if j is None else j.to(dtype=self.dtype, device=self.device) for j in
                               self.joint_offsets]
         self.low = self.low.to(dtype=self.dtype, device=self.device)
@@ -235,7 +246,8 @@ class Chain:
         if not (exclude_fixed and frame.joint.joint_type == "fixed"):
             joint_names.append(frame.name)
         for child in frame.children:
-            joint_names.extend(Chain._get_joint_parent_frame_names(child, exclude_fixed))
+            joint_names.extend(
+                Chain._get_joint_parent_frame_names(child, exclude_fixed))
         return joint_names
 
     def get_joint_parent_frame_names(self, exclude_fixed=True):
@@ -287,7 +299,7 @@ class Chain:
             print(tree)
         return tree
 
-    def forward_kinematics(self, th, frame_indices: Optional = None):
+    def forward_kinematics(self, th, frame_indices: Optional[torch.Tensor] = None):
         """
         Compute forward kinematics for the given joint values.
 
@@ -304,7 +316,7 @@ class Chain:
             frame_indices = self.get_all_frame_indices()
 
         th = self.ensure_tensor(th)
-        th = torch.atleast_2d(th)
+        th: torch.Tensor = torch.atleast_2d(th)
 
         b = th.shape[0]
         axes_expanded = self.axes.unsqueeze(0).repeat(b, 1, 1)
@@ -364,7 +376,8 @@ class Chain:
             # convert dict to a flat, complete, tensor of all joints values. Missing joints are filled with zeros.
             th_dict = th
             elem_shape = get_dict_elem_shape(th_dict)
-            th = torch.ones([*elem_shape, self.n_joints], device=self.device, dtype=self.dtype) * torch.nan
+            th = torch.ones([*elem_shape, self.n_joints],
+                            device=self.device, dtype=self.dtype) * torch.nan
             joint_names = self.get_joint_parameter_names()
             for joint_name, joint_position in th_dict.items():
                 jnt_idx = joint_names.index(joint_name)
@@ -377,7 +390,8 @@ class Chain:
         return th
 
     def get_all_frame_indices(self):
-        frame_indices = self.get_frame_indices(*self.get_frame_names(exclude_fixed=False))
+        frame_indices = self.get_frame_indices(
+            *self.get_frame_names(exclude_fixed=False))
         return frame_indices
 
     def clamp(self, th):
@@ -431,7 +445,8 @@ class SerialChain(Chain):
     """
 
     def __init__(self, chain, end_frame_name, root_frame_name="", **kwargs):
-        root_frame = chain._root if root_frame_name == "" else chain.find_frame(root_frame_name)
+        root_frame = chain._root if root_frame_name == "" else chain.find_frame(
+            root_frame_name)
         if root_frame is None:
             raise ValueError("Invalid root frame name %s." % root_frame_name)
         chain = Chain(root_frame, **kwargs)
@@ -462,7 +477,8 @@ class SerialChain(Chain):
 
     def forward_kinematics(self, th, end_only: bool = True):
         """ Like the base class, except `th` only needs to contain the joints in the SerialChain, not all joints. """
-        frame_indices, th = self.convert_serial_inputs_to_chain_inputs(th, end_only)
+        frame_indices, th = self.convert_serial_inputs_to_chain_inputs(
+            th, end_only)
 
         mat = super().forward_kinematics(th, frame_indices)
 
@@ -479,7 +495,8 @@ class SerialChain(Chain):
             th = torch.tensor(th, device=self.device, dtype=self.dtype)
 
         if end_only:
-            frame_indices = self.get_frame_indices(self._serial_frames[-1].name)
+            frame_indices = self.get_frame_indices(
+                self._serial_frames[-1].name)
         else:
             # pass through default behavior for frame indices being None, which is currently
             # to return all frames.
@@ -487,10 +504,13 @@ class SerialChain(Chain):
         if th_n_joints < self.n_joints:
             # if th is only a partial list of joints, assume it's a list of joints for only the serial chain.
             partial_th = th
-            nonfixed_serial_frames = list(filter(lambda f: f.joint.joint_type != 'fixed', self._serial_frames))
+            nonfixed_serial_frames = list(
+                filter(lambda f: f.joint.joint_type != 'fixed', self._serial_frames))
             if th_n_joints != len(nonfixed_serial_frames):
-                raise ValueError(f'Expected {len(nonfixed_serial_frames)} joint values, got {th_n_joints}.')
-            th = torch.zeros([th_b, self.n_joints], device=self.device, dtype=self.dtype)
+                raise ValueError(
+                    f'Expected {len(nonfixed_serial_frames)} joint values, got {th_n_joints}.')
+            th = torch.zeros([th_b, self.n_joints],
+                             device=self.device, dtype=self.dtype)
             for i, frame in enumerate(nonfixed_serial_frames):
                 joint_name = frame.joint.name
                 if isinstance(partial_th, dict):

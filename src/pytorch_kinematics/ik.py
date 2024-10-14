@@ -9,7 +9,9 @@ from matplotlib import pyplot as plt, cm as cm
 
 
 class IKSolution:
-    def __init__(self, dof, num_problems, num_retries, pos_tolerance, rot_tolerance, device="cpu"):
+    def __init__(
+        self, dof, num_problems, num_retries, pos_tolerance, rot_tolerance, device="cpu"
+    ):
         self.iterations = 0
         self.device = device
         self.num_problems = num_problems
@@ -20,7 +22,9 @@ class IKSolution:
 
         M = num_problems
         # N x DOF tensor of joint angles; if converged[i] is False, then solutions[i] is undefined
-        self.solutions = torch.zeros((M, self.num_retries, self.dof), device=self.device)
+        self.solutions = torch.zeros(
+            (M, self.num_retries, self.dof), device=self.device
+        )
         self.remaining = torch.ones(M, dtype=torch.bool, device=self.device)
 
         # M is the total number of problems
@@ -29,7 +33,9 @@ class IKSolution:
         self.err_pos = torch.zeros((M, self.num_retries), device=self.device)
         self.err_rot = torch.zeros_like(self.err_pos)
         # M x N boolean values indicating whether the solution converged (a solution could be found)
-        self.converged_pos = torch.zeros((M, self.num_retries), dtype=torch.bool, device=self.device)
+        self.converged_pos = torch.zeros(
+            (M, self.num_retries), dtype=torch.bool, device=self.device
+        )
         self.converged_rot = torch.zeros_like(self.converged_pos)
         self.converged = torch.zeros_like(self.converged_pos)
 
@@ -42,7 +48,9 @@ class IKSolution:
         self.remaining = self.remaining & keep
         return self.remaining
 
-    def update(self, q: torch.tensor, err: torch.tensor, use_keep_mask=True, keep_mask=None):
+    def update(
+        self, q: torch.tensor, err: torch.tensor, use_keep_mask=True, keep_mask=None
+    ):
         err = err.reshape(-1, self.num_retries, 6)
         err_pos = err[..., :3].norm(dim=-1)
         err_rot = err[..., 3:].norm(dim=-1)
@@ -73,33 +81,52 @@ class IKSolution:
 
 
 # helper config sampling method
-def gaussian_around_config(config: torch.Tensor, std: float) -> Callable[[int], torch.Tensor]:
+def gaussian_around_config(
+    config: torch.Tensor, std: float
+) -> Callable[[int], torch.Tensor]:
     def config_sampling_method(num_configs):
-        return torch.randn(num_configs, config.shape[0], dtype=config.dtype, device=config.device) * std + config
+        return (
+            torch.randn(
+                num_configs, config.shape[0], dtype=config.dtype, device=config.device
+            )
+            * std
+            + config
+        )
 
     return config_sampling_method
 
 
 class LineSearch:
-    def do_line_search(self, chain, q, dq, target_pos, target_wxyz, initial_dx, problem_remaining=None):
+    def do_line_search(
+        self, chain, q, dq, target_pos, target_wxyz, initial_dx, problem_remaining=None
+    ):
         raise NotImplementedError()
 
 
 class BacktrackingLineSearch(LineSearch):
-    def __init__(self, max_lr=1.0, decrease_factor=0.5, max_iterations=5, sufficient_decrease=0.01):
+    def __init__(
+        self,
+        max_lr=1.0,
+        decrease_factor=0.5,
+        max_iterations=5,
+        sufficient_decrease=0.01,
+    ):
         self.initial_lr = max_lr
         self.decrease_factor = decrease_factor
         self.max_iterations = max_iterations
         self.sufficient_decrease = sufficient_decrease
 
-    def do_line_search(self, chain, q, dq, target_pos, target_wxyz, initial_dx, problem_remaining=None):
+    def do_line_search(
+        self, chain, q, dq, target_pos, target_wxyz, initial_dx, problem_remaining=None
+    ):
         N = target_pos.shape[0]
         NM = q.shape[0]
         M = NM // N
         lr = torch.ones(NM, device=q.device) * self.initial_lr
         err = initial_dx.squeeze().norm(dim=-1)
         if problem_remaining is None:
-            problem_remaining = torch.ones(N, dtype=torch.bool, device=q.device)
+            problem_remaining = torch.ones(
+                N, dtype=torch.bool, device=q.device)
         remaining = torch.ones((N, M), dtype=torch.bool, device=q.device)
         # don't care about the ones that are no longer remaining
         remaining[~problem_remaining] = False
@@ -130,19 +157,27 @@ class BacktrackingLineSearch(LineSearch):
 class InverseKinematics:
     """Jacobian follower based inverse kinematics solver"""
 
-    def __init__(self, serial_chain: SerialChain,
-                 pos_tolerance: float = 1e-3, rot_tolerance: float = 1e-2,
-                 retry_configs: Optional[torch.Tensor] = None, num_retries: Optional[int] = None,
-                 joint_limits: Optional[torch.Tensor] = None,
-                 config_sampling_method: Union[str, Callable[[int], torch.Tensor]] = "uniform",
-                 max_iterations: int = 50,
-                 lr: float = 0.2, line_search: Optional[LineSearch] = None,
-                 regularlization: float = 1e-9,
-                 debug=False,
-                 early_stopping_any_converged=False,
-                 early_stopping_no_improvement="any", early_stopping_no_improvement_patience=2,
-                 optimizer_method: Union[str, typing.Type[torch.optim.Optimizer]] = "sgd"
-                 ):
+    def __init__(
+        self,
+        serial_chain: SerialChain,
+        pos_tolerance: float = 1e-3,
+        rot_tolerance: float = 1e-2,
+        retry_configs: Optional[torch.Tensor] = None,
+        num_retries: Optional[int] = None,
+        joint_limits: Optional[torch.Tensor] = None,
+        config_sampling_method: Union[str,
+                                      Callable[[int], torch.Tensor]] = "uniform",
+        max_iterations: int = 50,
+        lr: float = 0.2,
+        line_search: Optional[LineSearch] = None,
+        regularlization: float = 1e-9,
+        debug=False,
+        early_stopping_any_converged=False,
+        early_stopping_no_improvement="any",
+        early_stopping_no_improvement_patience=2,
+        optimizer_method: Union[str,
+                                typing.Type[torch.optim.Optimizer]] = "sgd",
+    ):
         """
         :param serial_chain:
         :param pos_tolerance: position tolerance in meters
@@ -175,7 +210,9 @@ class InverseKinematics:
         self.debug = debug
         self.early_stopping_any_converged = early_stopping_any_converged
         self.early_stopping_no_improvement = early_stopping_no_improvement
-        self.early_stopping_no_improvement_patience = early_stopping_no_improvement_patience
+        self.early_stopping_no_improvement_patience = (
+            early_stopping_no_improvement_patience
+        )
 
         self.max_iterations = max_iterations
         self.lr = lr
@@ -192,7 +229,8 @@ class InverseKinematics:
         self.rot_tolerance = rot_tolerance
         self.initial_config = retry_configs
         if retry_configs is None and num_retries is None:
-            raise ValueError("either initial_configs or num_retries must be specified")
+            raise ValueError(
+                "either initial_configs or num_retries must be specified")
 
         # sample initial configs instead
         self.config_sampling_method = config_sampling_method
@@ -201,7 +239,8 @@ class InverseKinematics:
             self.initial_config = self.sample_configs(num_retries)
         else:
             if retry_configs.shape[1] != self.dof:
-                raise ValueError("initial_configs must have shape (N, %d)" % self.dof)
+                raise ValueError(
+                    "initial_configs must have shape (N, %d)" % self.dof)
         # could give a batch of initial configs
         self.num_retries = self.initial_config.shape[-2]
 
@@ -215,15 +254,22 @@ class InverseKinematics:
         if self.config_sampling_method == "uniform":
             # bound by joint_limits
             if self.joint_limits is None:
-                raise ValueError("joint_limits must be specified if config_sampling_method is uniform")
-            return torch.rand(num_configs, self.dof, device=self.device) * (
-                    self.joint_limits[:, 1] - self.joint_limits[:, 0]) + self.joint_limits[:, 0]
+                raise ValueError(
+                    "joint_limits must be specified if config_sampling_method is uniform"
+                )
+            return (
+                torch.rand(num_configs, self.dof, device=self.device)
+                * (self.joint_limits[:, 1] - self.joint_limits[:, 0])
+                + self.joint_limits[:, 0]
+            )
         elif self.config_sampling_method == "gaussian":
             return torch.randn(num_configs, self.dof, device=self.device)
         elif callable(self.config_sampling_method):
             return self.config_sampling_method(num_configs)
         else:
-            raise ValueError("invalid config_sampling_method %s" % self.config_sampling_method)
+            raise ValueError(
+                "invalid config_sampling_method %s" % self.config_sampling_method
+            )
 
     def solve(self, target_poses: Transform3d) -> IKSolution:
         """
@@ -234,7 +280,7 @@ class InverseKinematics:
         raise NotImplementedError()
 
 
-def delta_pose(m: torch.tensor, target_pos, target_wxyz):
+def delta_pose(m: torch.tensor, target_pos: torch.Tensor, target_wxyz: torch.Tensor) -> torch.Tensor:
     """
     Determine the error in position and rotation between the given poses and the target poses
 
@@ -249,8 +295,10 @@ def delta_pose(m: torch.tensor, target_pos, target_wxyz):
 
     # quaternion that rotates from the current orientation to the desired orientation
     # inverse for unit quaternion is the conjugate
-    diff_wxyz = rotation_conversions.quaternion_multiply(target_wxyz.unsqueeze(1),
-                                                         rotation_conversions.quaternion_invert(cur_wxyz))
+    diff_wxyz = rotation_conversions.quaternion_multiply(
+        target_wxyz.unsqueeze(
+            1), rotation_conversions.quaternion_invert(cur_wxyz)
+    )
     # angular velocity vector needed to correct the orientation
     # if time is considered, should divide by \delta t, but doing it iteratively we can choose delta t to be 1
     diff_axis_angle = rotation_conversions.quaternion_to_axis_angle(diff_wxyz)
@@ -266,9 +314,10 @@ def apply_mask(mask, *args):
 
 
 class PseudoInverseIK(InverseKinematics):
-    def compute_dq(self, J, dx):
+    def compute_dq(self, J: torch.Tensor, dx: torch.Tensor) -> torch.Tensor:
         # lambda^2*I (lambda^2 is regularization)
-        reg = self.regularlization * torch.eye(6, device=self.device, dtype=self.dtype)
+        reg = self.regularlization * \
+            torch.eye(6, device=self.device, dtype=self.dtype)
 
         # JJ^T + lambda^2*I (lambda^2 is regularization)
         tmpA = J @ J.transpose(1, 2) + reg
@@ -279,7 +328,12 @@ class PseudoInverseIK(InverseKinematics):
         dq = J.transpose(1, 2) @ A
         return dq
 
-    def solve(self, target_poses: Transform3d) -> IKSolution:
+    def solve(self, target_poses: Transform3d, q_mask: Optional[torch.Tensor] = None) -> IKSolution:
+        if q_mask is not None:
+            assert isinstance(
+                q_mask, torch.Tensor) and q_mask.dtype == torch.bool
+            assert len(q_mask.shape) == 1 and q_mask.shape[0] == self.dof
+
         self.clear()
 
         target = target_poses.get_matrix()
@@ -289,9 +343,17 @@ class PseudoInverseIK(InverseKinematics):
         target_pos = target[:, :3, 3]
         # jacobian gives angular rotation about x,y,z axis of the base frame
         # convert target rot to desired rotation about x,y,z
-        target_wxyz = rotation_conversions.matrix_to_quaternion(target[:, :3, :3])
+        target_wxyz = rotation_conversions.matrix_to_quaternion(
+            target[:, :3, :3])
 
-        sol = IKSolution(self.dof, M, self.num_retries, self.pos_tolerance, self.rot_tolerance, device=self.device)
+        sol = IKSolution(
+            self.dof,
+            M,
+            self.num_retries,
+            self.pos_tolerance,
+            self.rot_tolerance,
+            device=self.device,
+        )
 
         q = self.initial_config
         if q.numel() == M * self.dof * self.num_retries:
@@ -303,14 +365,17 @@ class PseudoInverseIK(InverseKinematics):
             q = q.unsqueeze(0).repeat(M * self.num_retries, 1)
         else:
             raise ValueError(
-                f"initial_config must have shape ({M}, {self.num_retries}, {self.dof}) or ({self.num_retries}, {self.dof})")
+                f"initial_config must have shape ({M}, {self.num_retries}, {self.dof}) or ({self.num_retries}, {self.dof})"
+            )
         # for logging, let's keep track of the joint angles at each iteration
         if self.debug:
             pos_errors = []
             rot_errors = []
 
         optimizer = None
-        if inspect.isclass(self.optimizer_method) and issubclass(self.optimizer_method, torch.optim.Optimizer):
+        if inspect.isclass(self.optimizer_method) and issubclass(
+            self.optimizer_method, torch.optim.Optimizer
+        ):
             q.requires_grad = True
             optimizer = torch.optim.Adam([q], lr=self.lr)
         for i in range(self.max_iterations):
@@ -322,6 +387,8 @@ class PseudoInverseIK(InverseKinematics):
                 # compute forward kinematics
                 # N x 6 x DOF
                 J, m = self.chain.jacobian(q, ret_eef_pose=True)
+                if q_mask is not None:
+                    J = J[:, :, q_mask]
                 # unflatten to broadcast with goal
                 m = m.view(-1, self.num_retries, 4, 4)
                 dx, pos_diff, rot_diff = delta_pose(m, target_pos, target_wxyz)
@@ -333,23 +400,42 @@ class PseudoInverseIK(InverseKinematics):
 
             improvement = None
             if optimizer is not None:
-                q.grad = -dq
+                if q_mask is not None:
+                    q_grad = torch.empty_like(q)
+                    q_grad[:, q_mask] = -dq
+                    q_grad[:, ~q_mask] = 0
+                    q.grad = q_grad
+                else:
+                    q.grad = -dq
                 optimizer.step()
                 optimizer.zero_grad()
             else:
                 with torch.no_grad():
                     if self.line_search is not None:
-                        lr, improvement = self.line_search.do_line_search(self.chain, q, dq, target_pos, target_wxyz,
-                                                                          dx, problem_remaining=sol.remaining)
+                        lr, improvement = self.line_search.do_line_search(
+                            self.chain,
+                            q,
+                            dq,
+                            target_pos,
+                            target_wxyz,
+                            dx,
+                            problem_remaining=sol.remaining,
+                        )
                         lr = lr.unsqueeze(1)
                     else:
                         lr = self.lr
-                    q = q + lr * dq
+
+                    if q_mask is not None:
+                        q[:, q_mask] = q[:, q_mask] + lr * dq
+                    else:
+                        q = q + lr * dq
 
             with torch.no_grad():
                 self.err_all = dx.squeeze()
                 self.err = self.err_all.norm(dim=-1)
-                sol.update(q, self.err_all, use_keep_mask=self.early_stopping_any_converged)
+                sol.update(
+                    q, self.err_all, use_keep_mask=self.early_stopping_any_converged
+                )
 
                 if self.early_stopping_no_improvement is not None:
                     if self.no_improve_counter is None:
@@ -365,16 +451,24 @@ class PseudoInverseIK(InverseKinematics):
                             self.no_improve_counter[~improved] += 1
 
                             # those that haven't improved
-                            could_improve = self.no_improve_counter <= self.early_stopping_no_improvement_patience
+                            could_improve = (
+                                self.no_improve_counter
+                                <= self.early_stopping_no_improvement_patience
+                            )
                             # consider problems, and only throw out those whose all retries cannot be improved
-                            could_improve = could_improve.reshape(-1, self.num_retries)
+                            could_improve = could_improve.reshape(
+                                -1, self.num_retries)
                             if self.early_stopping_no_improvement == "all":
                                 could_improve = could_improve.all(dim=1)
                             elif self.early_stopping_no_improvement == "any":
                                 could_improve = could_improve.any(dim=1)
                             elif isinstance(self.early_stopping_no_improvement, float):
-                                ratio_improved = could_improve.sum(dim=1) / self.num_retries
-                                could_improve = ratio_improved > self.early_stopping_no_improvement
+                                ratio_improved = (
+                                    could_improve.sum(dim=1) / self.num_retries
+                                )
+                                could_improve = (
+                                    ratio_improved > self.early_stopping_no_improvement
+                                )
                             sol.update_remaining_with_keep_mask(could_improve)
 
                 if self.debug:
@@ -386,7 +480,7 @@ class PseudoInverseIK(InverseKinematics):
             fig, ax = plt.subplots(ncols=2, figsize=(10, 5))
             pos_e = torch.stack(pos_errors, dim=0).cpu()
             rot_e = torch.stack(rot_errors, dim=0).cpu()
-            ax[0].set_ylim(0, 1.)
+            ax[0].set_ylim(0, 1.0)
             # ignore nan
             ignore = torch.isnan(rot_e)
             axis_max = rot_e[~ignore].max().item()
@@ -397,8 +491,8 @@ class PseudoInverseIK(InverseKinematics):
             draw_max = min(50, pos_e.shape[1])
             for b in range(draw_max):
                 c = (b + 1) / draw_max
-                ax[0].plot(pos_e[:, b], c=cm.GnBu(c))
-                ax[1].plot(rot_e[:, b], c=cm.GnBu(c))
+                ax[0].plot(pos_e[:, b].tolist(), c=cm.GnBu(c))
+                ax[1].plot(rot_e[:, b].tolist(), c=cm.GnBu(c))
             # label these axis
             ax[0].set_ylabel("position error")
             ax[1].set_xlabel("iteration")
@@ -420,7 +514,7 @@ class PseudoInverseIKWithSVD(PseudoInverseIK):
         # tmpA = U @ (D @ D.transpose(1, 2) + reg) @ U.transpose(1, 2)
         # singular_val = torch.diagonal(D)
 
-        denom = D ** 2 + self.regularlization
+        denom = D**2 + self.regularlization
         prod = D / denom
         # J^T (JJ^T + lambda^2I)^-1 = V @ (D @ D^T + lambda^2I)^-1 @ U^T = sum_i (d_i / (d_i^2 + lambda^2) v_i @ u_i^T)
         # should be equivalent to damped least squares
